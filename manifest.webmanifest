@@ -1,0 +1,17 @@
+{
+  "name": "Лад — музыка: уроки и практика",
+  "short_name": "Лад",
+  "description": "Электрогитара, барабаны, синтезатор, теория и ритм. Уроки, тренировки и студия без интернета",
+  "lang": "ru",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#111315",
+  "theme_color": "#111315",
+  "icons": [
+    {"src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png"},
+    {"src": "icons/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}
