@@ -129,6 +129,7 @@ document.addEventListener("click", e => {
   const ns = b.dataset.notes.split(",").map(Number); AU.play(ns, { arp: "arp" in b.dataset, inst: b.dataset.inst || "keys", gap: +b.dataset.gap || undefined, tone: b.dataset.tone, preset: b.dataset.preset, dur: b.dataset.preset ? 1.4 : undefined });
   b.animate([{ transform: "scale(.92)" }, { transform: "scale(1)" }], { duration: 250, easing: "ease-out" });
 });
+document.addEventListener("click", e => { const b = e.target.closest("[data-shape]"); if (!b) return; AU.init(); const f = b.dataset.shape.split(",").map(Number); AU.strum(f.map((x, s) => x < 0 ? null : tuning()[s] + x).filter(x => x != null), 0, { speed: .02 }); practiceTick("guitar"); b.classList.add("on"); setTimeout(() => b.classList.remove("on"), 500) });
 document.addEventListener("click", e => { const b = e.target.closest("[data-dseq]"); if (!b) return; AU.init(); const t = AU.now() + .03; b.dataset.dseq.split(",").forEach(x => { const [n, d, v] = x.split("@"); AU.drum(n, t + +d, +v) }); b.animate([{ transform: "scale(.92)" }, { transform: "scale(1)" }], { duration: 220 }) });
 document.addEventListener("click", e => { const b = e.target.closest("[data-drum]"); if (!b) return; AU.init(); AU.drum(b.dataset.drum); b.animate([{ transform: "scale(.9)" }, { transform: "scale(1)" }], { duration: 200 }) });
 

@@ -74,7 +74,7 @@ const ACCENTS = {
   lilac: { n: "Сирень", d: "#AA9CFF", l: "#6553E6" }, amber: { n: "Янтарь", d: "#FFC24B", l: "#B97900" },
   coral: { n: "Коралл", d: "#FF7A66", l: "#D9472F" }, rose: { n: "Роза", d: "#FF86BC", l: "#CC3D7F" }
 };
-const COURSE_COL = { theory: ["#AA9CFF", "#6553E6"], rhythm: ["#FFC24B", "#B97900"], guitar: ["#FF7A66", "#D9472F"], drums: ["#5AB4FF", "#2275D8"], keys: ["#3DD6A3", "#0C9B70"], styles: ["#FF86BC", "#CC3D7F"] };
+const COURSE_COL = { theory: ["#AA9CFF", "#6553E6"], rhythm: ["#FFC24B", "#B97900"], guitar: ["#FF7A66", "#D9472F"], drums: ["#5AB4FF", "#2275D8"], keys: ["#3DD6A3", "#0C9B70"], styles: ["#FF86BC", "#CC3D7F"], fret: ["#4FD1E8", "#0E8FA8"] };
 const DEF = {
   skin: "graphite", accent: "mint", fsz: 16, motion: "full", names: "latin", flats: 0,
   vol: 0.8, uiSfx: 1, latency: 0, countIn: 1,
@@ -156,6 +156,9 @@ const ACH = [
   { id: "lv10", e: "🎸", n: "Музыкант", d: "Достичь 10 уровня", t: () => level().n >= 10 },
   { id: "theory", e: "🎼", n: "Теоретик", d: "Пройти курс теории", t: () => courseP("theory") >= 1 },
   { id: "guitar", e: "🎸", n: "Гитарист", d: "Пройти курс гитары", t: () => courseP("guitar") >= 1 },
+  { id: "fret", e: "🗺", n: "Гриф как на ладони", d: "Пройти курс «Гриф и гармония»", t: () => courseP("fret") >= 1 },
+  { id: "fmap", e: "🧠", n: "Карта в голове", d: "Выучить 60 позиций на грифе", t: () => Object.values(ST.fmem || {}).filter(m => m.ok >= 3 && m.ok > m.bad * 2).length >= 60 },
+  { id: "harm", e: "🎨", n: "Гармонист", d: "Собрать 10 гармоний в конструкторе", t: () => (ST.use.harmony || 0) > 0 && LS.get("lad_hfav", []).length >= 10 },
   { id: "drums", e: "🥁", n: "Барабанщик", d: "Пройти курс барабанов", t: () => courseP("drums") >= 1 },
   { id: "keys", e: "🎹", n: "Клавишник", d: "Пройти курс клавиш", t: () => courseP("keys") >= 1 },
   { id: "rhythm", e: "⏱", n: "Чувство ритма", d: "Пройти курс ритма", t: () => courseP("rhythm") >= 1 },
