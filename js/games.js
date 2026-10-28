@@ -242,15 +242,16 @@ function fretNoteGame(cfg) {
   <div class="widget" style="padding:10px" id="fFb"></div>
   <p class="note" style="text-align:center">Какая нота отмечена?</p>
   <div class="opts grid4" id="fOpts">${[...Array(12).keys()].map(p => `<button class="opt" data-p="${p}" style="padding:14px 6px">${nn(p)}</button>`).join("")}</div>
-  <div class="ctrl"><button class="btn primary grow" id="fGo">${IC.play}Начать на 60 секунд</button></div>`;
+  <div class="ctrl"><button class="btn primary grow" id="fGo">${IC.play}Начать на 60 секунд</button>${cfg.smart ? `<button class="btn soft" data-fmap>Карта</button>` : ""}</div>${cfg.smart ? `<p class="note">Тренажёр чаще спрашивает позиции, где вы ошибались или долго думали, и ещё не встречавшиеся.</p>` : ""}`;
   let timer = 0;
-  const el = openLayer("Ноты на грифе", html, { cc: "guitar", onClose: () => clearInterval(timer) });
+  const el = openLayer(cfg.smart ? "Умная тренировка грифа" : "Ноты на грифе", html, { cc: "guitar", onClose: () => clearInterval(timer) });
   let fb = null, cur = null, sc = 0, wrong = 0, left = DUR, on = false;
   el.querySelector("#fFb").innerHTML = fretboardHTML({ frets: Math.min(15, cfg.max + 1), small: 1, silent: 0, ref: w => fb = w });
   W.mount(el.querySelector("#fFb"));
-  const nextQ = () => { let s, f; do { s = pick(cfg.strings); f = rnd(cfg.max + 1) } while (cur && cur.s === s && cur.f === f); cur = { s, f, m: tuning()[s] + f }; fb._draw([{ s, f, l: "?", c: "var(--gold)" }]) };
+  const nextQ = () => { let s, f; do { if (cfg.smart) ({ s, f } = fmemPick(cfg.strings, cfg.max)); else { s = pick(cfg.strings); f = rnd(cfg.max + 1) } } while (cur && cur.s === s && cur.f === f); cur = { s, f, m: tuning()[s] + f, t: performance.now() }; fb._draw([{ s, f, l: "?", c: "var(--gold)" }]) };
   $$("#fOpts .opt", el).forEach(b => b.onclick = () => {
     if (!on) return; const p = +b.dataset.p;
+    fmemRec(cur.s, cur.f, p === pcOf(cur.m), performance.now() - cur.t);
     if (p === pcOf(cur.m)) { sc++; b.classList.add("ok"); AU.init(); AU.pluck(cur.m, 0, .8, { tone: "clean" }); setTimeout(() => b.classList.remove("ok"), 300); el.querySelector("#fS").textContent = sc; nextQ() }
     else { wrong++; b.classList.add("bad"); sfx("bad"); setTimeout(() => b.classList.remove("bad"), 400); fb._draw([{ s: cur.s, f: cur.f, l: nn(cur.m), c: "var(--warn)" }]); setTimeout(() => on && nextQ(), 700) }
   });
@@ -419,3 +420,80 @@ document.addEventListener("click", e => {
   const b = e.target.closest("[data-tapgame]"); if (!b) return;
   laneGame("custom", 0, { n: "Ритм из урока", bpm: +b.dataset.bpm || 80, bars: [b.dataset.tapgame] });
 });
+
+/* ---------- fretboard memory (spaced repetition) ---------- */
+function fmemRec(s, f, ok, ms) {
+  ST.fmem = ST.fmem || {}; const k = s + "," + f, m = ST.fmem[k] || { ok: 0, bad: 0, ms: 0 };
+  if (ok) { m.ok++; m.ms = m.ms ? Math.round(m.ms * .6 + Math.min(ms, 8000) * .4) : Math.round(Math.min(ms, 8000)) } else m.bad++;
+  m.t = Date.now(); ST.fmem[k] = m; saveState();
+}
+function fmemScore(s, f) { const m = (ST.fmem || {})[s + "," + f]; if (!m) return null; const tot = m.ok + m.bad; return clamp((m.ok - m.bad * 1.5) / Math.max(3, tot) - (m.ms > 3500 ? .25 : m.ms > 2000 ? .1 : 0), -1, 1) }
+function fmemPick(strings, max) {
+  const now = Date.now(), cand = [];
+  for (const s of strings) for (let f = 0; f <= max; f++) { const m = (ST.fmem || {})[s + "," + f]; let w; if (!m) w = 4; else { const sc = fmemScore(s, f); w = 1 + (1 - sc) * 3 + Math.min(3, (now - (m.t || 0)) / 864e5) } cand.push([{ s, f }, w]) }
+  const tot = cand.reduce((a, c) => a + c[1], 0); let v = Math.random() * tot; for (const c of cand) { v -= c[1]; if (v <= 0) return c[0] } return cand[0][0];
+}
+function fretMap() {
+  W.stopAll();
+  const known = [], marks = []; let n = 0;
+  for (let s = 0; s < 6; s++) for (let f = 0; f <= 12; f++) { const sc = fmemScore(s, f), m = tuning()[s] + f; let c; if (sc == null) c = "var(--faint)"; else if (sc > .5) { c = "#3DD6A3"; n++ } else if (sc > 0) c = "#FFC24B"; else c = "#FF7A66"; marks.push({ s, f, l: nn(m), c, ghost: sc == null }) }
+  const html = `<p class="lead">Цвет показывает, насколько уверенно вы знаете позицию: <b style="color:#3DD6A3">знаю</b>, <b style="color:#FFC24B">путаю</b>, <b style="color:#FF7A66">ошибаюсь</b>, серый — ещё не встречалось.</p>
+  <div class="widget" style="padding:10px" id="mapFb"></div><div class="sgrid"><div class="panel sbox"><div class="v">${n}</div><div class="k">из 78 позиций уверенно</div></div><div class="panel sbox"><div class="v">${Object.keys(ST.fmem || {}).length}</div><div class="k">позиций встречалось</div></div></div>
+  <div class="ctrl"><button class="btn primary grow" data-prac='{"g":"fretsmart"}'>${IC.play}Умная тренировка</button><button class="btn soft" data-prac='{"g":"findall"}'>Найди все</button><button class="btn soft" data-prac='{"g":"intfret"}'>Интервалы</button></div>`;
+  const el = openLayer("Карта знания грифа", html, { cc: "fret" });
+  el.querySelector("#mapFb").innerHTML = fretboardHTML({ frets: 12, marks }); W.mount(el.querySelector("#mapFb")); bindView(el);
+}
+document.addEventListener("click", e => { if (e.target.closest("[data-fmap]")) fretMap() });
+
+/* ---------- find every position of a note ---------- */
+function findAllGame() {
+  W.stopAll(); const ROUNDS = 5, MAXF = 12, key = "findall";
+  const html = `<div class="ghud"><div><small>Раунд</small><span class="sc" id="faR">1/${ROUNDS}</span></div><div style="text-align:center"><small>Найти</small><b id="faN" style="font:700 30px var(--f-head)">?</b></div><div style="text-align:right"><small>Осталось</small><b id="faL">—</b></div></div>
+  <div class="widget" style="padding:10px" id="faFb"></div><p class="note" style="text-align:center" id="faH">Нажмите на все позиции ноты до 12 лада. Прокручивайте гриф.</p>
+  <div class="ctrl"><button class="btn primary grow" id="faGo">${IC.play}Начать</button></div>`;
+  const el = openLayer("Найди все позиции", html, { cc: "fret" });
+  let fb = null, round = 0, target = null, found = [], left = [], errors = 0, t0 = 0, on = false, totalT = 0, used = [];
+  el.querySelector("#faFb").innerHTML = fretboardHTML({ frets: MAXF, small: 1, ref: w => fb = w, onNote: (m, s, f) => {
+    if (!on) return; const hit = left.find(p => p.s === s && p.f === f);
+    if (hit) { left = left.filter(p => p !== hit); found.push(hit); fmemRec(s, f, true, 1500) } else if (!found.some(p => p.s === s && p.f === f)) { errors++; sfx("bad"); fb._flash(s, f, "var(--warn)"); fmemRec(s, f, false, 0) }
+    draw(); if (!left.length) next();
+  } });
+  W.mount(el.querySelector("#faFb"));
+  const draw = () => { fb._draw(found.map(p => Object.assign({ l: nn(target, { ru: 0 }) }, p))); el.querySelector("#faL").textContent = left.length };
+  const next = () => {
+    if (round > 0) { totalT += performance.now() - t0; sfx("ok"); addXP(2) }
+    if (round >= ROUNDS) return finish();
+    let pc; do pc = rnd(12); while (used.includes(pc)); used.push(pc); target = pc; round++;
+    left = posOf(pc, MAXF).slice(); found = []; t0 = performance.now();
+    el.querySelector("#faN").textContent = nn(pc); el.querySelector("#faR").textContent = round + "/" + ROUNDS; draw();
+  };
+  const finish = () => {
+    on = false; const sec = Math.round(totalT / 1000), per = Math.round(sec / ROUNDS), stars = errors <= 2 && per <= 20 ? 3 : errors <= 5 && per <= 35 ? 2 : 1;
+    const g = ST.games[key] || {}; const xp = 5 + stars * 5 + (!g.stars ? 10 : 0);
+    ST.games[key] = { best: g.best ? Math.min(g.best, per) : per, stars: Math.max(g.stars || 0, stars), plays: (g.plays || 0) + 1 }; saveState(); dailyDone("notes", stars);
+    el.querySelector("#faH").innerHTML = `<b style="color:var(--fg)">Готово: в среднем ${per} с на ноту, ошибок ${errors}.</b> Цель — меньше 15 секунд без ошибок.`;
+    el.querySelector("#faGo").disabled = false; el.querySelector("#faGo").innerHTML = IC.refresh + "Ещё раз"; addXP(xp); if (stars === 3) confetti();
+  };
+  el.querySelector("#faGo").onclick = () => { if (on) return; AU.init(); on = true; round = 0; errors = 0; totalT = 0; used = []; el.querySelector("#faGo").disabled = true; next() };
+}
+
+/* ---------- intervals on the fretboard ---------- */
+function intervalFretGame() {
+  W.stopAll(); const DUR = 60, key = "intfret", SET_I = [3, 4, 5, 7, 9, 10, 11, 12, 2, 6];
+  const html = `<div class="ghud"><div><small>Верно</small><span class="sc" id="ifS">0</span></div><div style="text-align:center"><small>Построить</small><b id="ifN" style="font:700 20px var(--f-head)">—</b></div><div style="text-align:right"><small>Время</small><b id="ifT">${DUR}</b></div></div>
+  <div class="widget" style="padding:10px" id="ifFb"></div><p class="note" style="text-align:center">Нажмите ноту, которая на заданный интервал <b>выше</b> красной.</p>
+  <div class="ctrl"><button class="btn primary grow" id="ifGo">${IC.play}Начать на 60 секунд</button></div>`;
+  let timer = 0; const el = openLayer("Интервалы на грифе", html, { cc: "fret", onClose: () => clearInterval(timer) });
+  let fb = null, cur = null, sc = 0, wrong = 0, left = DUR, on = false;
+  el.querySelector("#ifFb").innerHTML = fretboardHTML({ frets: 12, small: 1, ref: w => fb = w, onNote: (m) => {
+    if (!on) return;
+    if (m === cur.target) { sc++; el.querySelector("#ifS").textContent = sc; sfx("ok"); setTimeout(nextQ, 250) }
+    else { wrong++; sfx("bad"); const ps = []; for (let s = 0; s < 6; s++) { const f = cur.target - tuning()[s]; if (f >= 0 && f <= 12) ps.push({ s, f, l: INTERVALS[cur.iv][1], c: "var(--accent)" }) } fb._draw([{ s: cur.s, f: cur.f, l: "1", root: 1 }].concat(ps)); setTimeout(() => on && nextQ(), 900) }
+  } });
+  W.mount(el.querySelector("#ifFb"));
+  const nextQ = () => { let s, f, iv, tg; do { s = rnd(5); f = rnd(9); iv = pick(SET_I); tg = tuning()[s] + f + iv } while (!(() => { for (let k = 0; k < 6; k++) { const ff = tg - tuning()[k]; if (ff >= 0 && ff <= 12 && k !== s) return true } return false })()); cur = { s, f, iv, target: tg }; el.querySelector("#ifN").textContent = INTERVALS[iv][2]; fb._draw([{ s, f, l: "1", root: 1 }]) };
+  el.querySelector("#ifGo").onclick = () => {
+    if (on) return; AU.init(); on = true; sc = wrong = 0; left = DUR; el.querySelector("#ifS").textContent = 0; el.querySelector("#ifGo").disabled = true; nextQ();
+    timer = setInterval(() => { left--; el.querySelector("#ifT").textContent = left; practiceTick("game"); if (left <= 0) { clearInterval(timer); on = false; noteGameEnd(el, key, sc, wrong, "#ifGo") } }, 1000);
+  };
+}

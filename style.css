@@ -483,3 +483,7 @@ textarea.field{height:auto;min-height:96px;padding:12px 14px;resize:vertical}
 .week i.now{outline:1px solid var(--faint);outline-offset:1px}
 .lesson .st{flex:0 0 36px;height:36px;align-self:center}
 .opts.grid .opt{font-size:15px;padding:14px 10px}
+.search{display:flex;align-items:center;gap:10px;background:var(--surface);border-radius:14px;padding:0 14px;color:var(--muted);margin-bottom:12px}
+.search input{flex:1;min-width:0;height:48px;border:0;background:transparent;outline:none;font-size:16px;color:var(--fg)}
+.search svg{width:20px;height:20px;flex-shrink:0}
+.ctrl select.field{flex:1 1 140px;width:auto;min-width:0}

@@ -2,6 +2,7 @@
 /* tools.js — Студия: гитара, барабаны и драм-машина, синтезатор, метроном, тюнер, справочник. */
 
 const TOOLS = [
+  { id: "harmony", n: "Гармония", d: "Настроение → аккорды, табы и звук", ic: "spark", c: "styles" },
   { id: "guitar", n: "Гитара", d: "Гриф, аккорды, гаммы, 5 звуков усилителя", ic: "guitar", c: "guitar" },
   { id: "drums", n: "Барабаны", d: "Пэды и драм-машина на 16 шагов", ic: "drums", c: "drums" },
   { id: "synth", n: "Синтезатор", d: "3 октавы, 12 пресетов, аккорды и арпеджиатор", ic: "keys", c: "keys" },
@@ -11,7 +12,7 @@ const TOOLS = [
 ];
 function openTool(id) {
   W.stopAll();
-  const f = { guitar: toolGuitar, drums: toolDrums, synth: toolSynth, metro: toolMetro, tuner: toolTuner, ref: toolRef }[id];
+  const f = { harmony: toolHarmony, guitar: toolGuitar, drums: toolDrums, synth: toolSynth, metro: toolMetro, tuner: toolTuner, ref: toolRef }[id];
   f && f();
 }
 const segHTML = (cls, items, cur) => `<div class="seg ${cls}">${items.map(([k, n]) => `<button data-v="${k}" class="${k == cur ? "on" : ""}">${esc(n)}</button>`).join("")}</div>`;
@@ -100,7 +101,7 @@ function toolDrums() {
   };
   drawSeq();
   seq.addEventListener("click", e => { const b = e.target.closest(".stp"); if (!b) return; const k = b.dataset.k, i = +b.dataset.i; const v = pat.s[k][i]; pat.s[k][i] = v === 0 ? 1 : v === 1 ? 2 : v === 2 ? 3 : 0; drawSeq(); if (pat.s[k][i]) { AU.init(); AU.drum(k, 0, pat.s[k][i] === 2 ? 1 : pat.s[k][i] === 3 ? .3 : .8) } });
-  bindSeg(el, "dkit", v => { SET.kit = v; saveSet(); AU.init(); AU.drum("snare"); AU.drum("kick") });
+  bindSeg(el, "dkit", v => { AU.init(); AU.setKit(v); saveSet(); AU.loadKit(v).then(() => { AU.drum("kick"); AU.drum("snare", AU.now() + .22) }) });
   // pads with multitouch and velocity
   el.querySelector("#pads").addEventListener("pointerdown", e => {
     const p = e.target.closest(".pad"); if (!p) return; e.preventDefault(); AU.init();
@@ -125,7 +126,7 @@ function toolDrums() {
   el.querySelector("#dmPlay").onclick = play;
   el.querySelector("#dmBpm").oninput = e => { pat.bpm = +e.target.value; el.querySelector("#dmBpmO").textContent = pat.bpm; if (clk) clk.bpm = pat.bpm };
   el.querySelector("#dmSw").oninput = e => { pat.swing = +e.target.value / 100; el.querySelector("#dmSwO").textContent = e.target.value + "%"; if (clk) clk.swing = pat.swing };
-  $$("[data-pre]", el).forEach(b => b.onclick = () => { const pr = DM_PRESETS[b.dataset.pre]; const was = clk && clk.running; pat = patFrom(pr); if (pr.kit) { SET.kit = pr.kit; saveSet(); $$(".dkit button", el).forEach(x => x.classList.toggle("on", x.dataset.v === pr.kit)) } el.querySelector("#dmName").textContent = pr.n; drawSeq(); if (clk) { clk.bpm = pat.bpm; clk.swing = pat.swing } if (!was && pr !== DM_PRESETS.clear) { play() } });
+  $$("[data-pre]", el).forEach(b => b.onclick = () => { const pr = DM_PRESETS[b.dataset.pre]; const was = clk && clk.running; pat = patFrom(pr); if (pr.kit) { AU.setKit(pr.kit); saveSet(); $$(".dkit button", el).forEach(x => x.classList.toggle("on", x.dataset.v === pr.kit)) } el.querySelector("#dmName").textContent = pr.n; drawSeq(); if (clk) { clk.bpm = pat.bpm; clk.swing = pat.swing } if (!was && pr !== DM_PRESETS.clear) { play() } });
   el.querySelector("#dmBass").onclick = e => { bassOn = !bassOn; e.target.textContent = bassOn ? "Бас: вкл" : "Бас: выкл"; e.target.classList.toggle("primary", bassOn) };
   el.querySelector("#dmSave").onclick = () => {
     openSheet(`<h2>Сохранить паттерн</h2><input class="field" id="pName" placeholder="Название" maxlength="30" value="Мой бит ${Object.keys(saved()).length + 1}"><div class="acts" style="display:flex;gap:10px;margin-top:14px"><button class="btn primary block" id="pOk">Сохранить</button></div>`);

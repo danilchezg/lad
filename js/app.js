@@ -1,7 +1,7 @@
 "use strict";
 /* app.js — экраны: Сегодня, Уроки, Студия, Тренировки, Профиль; уроки и тесты; настройки; копия; ИИ. */
 
-const COURSE_ORDER = ["theory", "rhythm", "guitar", "drums", "keys", "styles"];
+const COURSE_ORDER = ["theory", "fret", "rhythm", "guitar", "drums", "keys", "styles"];
 const allLessons = c => COURSES[c].units.flatMap(u => u.lessons);
 const findLesson = id => { for (const c of COURSE_ORDER) for (const [ui, u] of COURSES[c].units.entries()) { const li = u.lessons.findIndex(l => l.id === id); if (li >= 0) return { c, ui, li, u, l: u.lessons[li] } } return null };
 const nextLesson = c => allLessons(c).find(l => !ST.done[l.id]);
@@ -30,7 +30,8 @@ function bindView(root) {
 const ACTIONS = {
   daily: () => dailyToday().run(),
   fret65: () => fretNoteGame({ strings: [0, 1], max: 12 }), fret5: () => fretNoteGame({ strings: [0, 1, 2, 3, 4, 5], max: 5 }), fretAll: () => fretNoteGame({ strings: [0, 1, 2, 3, 4, 5], max: 12 }),
-  keynote: () => keyNoteGame(), tempo: b => tempoGame(+b.dataset.bpm || 90), repeat: () => repeatGame(), calib: () => calibrate(),
+  keynote: () => keyNoteGame(), fmap: () => fretMap(), fsmart: () => fretNoteGame({ strings: [0, 1, 2, 3, 4, 5], max: 12, smart: 1 }), findall: () => findAllGame(), intfret: () => intervalFretGame(), harmony: () => openTool("harmony"), tempo: b => tempoGame(+b.dataset.bpm || 90), repeat: () => repeatGame(), calib: () => calibrate(),
+  audioreset: () => { W.stopAll(); AU.restart(); setTimeout(() => { AU.drum("kick"); AU.note(64, AU.now() + .2, .4) }, 300); toast("Звук перезапущен") },
   install: () => { LS.set("lad_noinst", 1); render() }, ask: () => askTeacher(null), plan: () => askPlan()
 };
 function runPractice(p) {
@@ -38,6 +39,9 @@ function runPractice(p) {
   else if (p.g === "fretnote") fretNoteGame({ strings: p.strings, max: p.max });
   else if (p.g === "keynote") keyNoteGame();
   else if (p.g === "tempo") tempoGame(p.bpm);
+  else if (p.g === "fretsmart") fretNoteGame({ strings: [0, 1, 2, 3, 4, 5], max: 12, smart: 1 });
+  else if (p.g === "findall") findAllGame();
+  else if (p.g === "intfret") intervalFretGame();
   else if (p.g === "lanes") laneGame(p.lanes === 3 ? "drums" : p.lanes === 2 ? "hands" : "rhythm", p.lv || (p.lanes === 3 ? 1 : 0));
 }
 
@@ -57,6 +61,7 @@ function homeView() {
   const lastC = LS.get("lad_lastc", "theory"), order = [lastC, ...COURSE_ORDER.filter(c => c !== lastC)];
   let cont = null; for (const c of order) { const l = nextLesson(c); if (l) { cont = { c, l }; break } }
   if (cont) { const f = findLesson(cont.l.id); h += `<button class="panel cont press" data-lesson="${cont.l.id}" style="--cc:var(--c-${cont.c})"><span class="cic">${IC[COURSES[cont.c].ic]}</span><div class="info"><small style="color:var(--cc)">${esc(COURSES[cont.c].n)} · ${esc(f.u.n)}</small><h3>${esc(cont.l.t)}</h3><div class="sub">${esc(cont.l.d)}</div></div><span class="go">${IC.play}</span></button>` }
+  h += `<button class="panel cont press" data-act="harmony" style="--cc:var(--c-styles)"><span class="cic">${IC.spark}</span><div class="info"><small style="color:var(--cc)">Гармония</small><h3>Настроение → аккорды</h3><div class="sub">Frutiger Aero, ностальгия, ночной город и ещё 30 оттенков — с аппликатурами и табами</div></div><span class="go" style="background:var(--cc)">${IC.chev}</span></button>`;
   // daily
   const D = dailyToday(), dd = ST.daily && ST.daily[today()];
   h += `<div class="sec"><h2>Задание дня</h2><span>+30 XP</span></div><button class="panel cont press" data-act="daily" style="--cc:var(--gold);margin-top:0"><span class="cic">${dd ? IC.check : IC.target}</span><div class="info"><h3>${esc(D.n)}</h3><div class="sub">${dd ? "Выполнено сегодня. Возвращайтесь завтра!" : "Получите хотя бы одну звезду"}</div></div><span class="go" style="background:var(--gold)">${IC.play}</span></button>`;
@@ -108,6 +113,7 @@ function blockHTML(b) {
   if (b.drums) return `<div class="pads" style="margin:12px 0">${b.drums.map(k => `<button class="pad" data-drum="${k}" style="--pc:${AU.DRUMS[k].c}"><i></i><span>${AU.DRUMS[k].n}</span></button>`).join("")}</div>`;
   if (b.kbd) return `<div class="widget" style="padding:10px">${keyboardHTML(Object.assign({ small: 1 }, b.kbd, { kh: b.kbd.small ? 120 : 150 }))}</div>`;
   if (b.fret) return `<div class="widget" style="padding:10px">${fretboardHTML(Object.assign({ small: 1 }, b.fret))}</div>`;
+  if (b.shapes) return `<div class="chords" style="margin:14px 0">${b.shapes.map(x => `<button class="chordc" data-shape="${x.f.join(",")}"><b>${esc(x.n)}</b>${shapeSVG(x.f)}<small>${x.f.map(v => v < 0 ? "x" : v).join(" ")}</small></button>`).join("")}</div>`;
   if (b.chords) return `<div class="chords" style="margin:14px 0">${b.chords.map(chordCardHTML).join("")}</div>`;
   if (b.groove) return grooveHTML(Object.assign({ div: 4 }, b.groove), { title: b.title || b.groove.name, bass: b.bass });
   if (b.rhythm) return rhythmHTML(b.rhythm, b);
@@ -185,6 +191,10 @@ function trainView() {
   h += `<div class="sec"><h2>Слух</h2></div><div class="gsel">${EAR_SETS.map(e => { const g = ST.games["ear:" + e.id] || {}; return `<button class="panel gitem press" data-ear="${e.id}"><span class="cic" style="--cc:var(--c-theory)">${IC.ear}</span><div class="info"><h3>${esc(e.n)}</h3><p>${esc(e.d)}</p></div>${g.best != null ? `<span class="best">${"★".repeat(g.stars || 0)} ${g.best}/10</span>` : ""}</button>` }).join("")}</div>`;
   const nb = k => { const g = ST.games[k]; return g && g.best != null ? `<span class="best">${"★".repeat(g.stars || 0)} ${g.best}</span>` : "" };
   h += `<div class="sec"><h2>Ноты</h2></div><div class="gsel">
+    <button class="panel gitem press" data-act="fmap"><span class="cic" style="--cc:var(--c-fret)">${IC.target}</span><div class="info"><h3>Карта знания грифа</h3><p>Видно, какие позиции вы знаете, а какие путаете</p></div></button>
+    <button class="panel gitem press" data-act="fsmart"><span class="cic" style="--cc:var(--c-fret)">${IC.guitar}</span><div class="info"><h3>Умная тренировка грифа</h3><p>Чаще спрашивает то, что вы не знаете</p></div>${nb("fret:012345:12")}</button>
+    <button class="panel gitem press" data-act="findall"><span class="cic" style="--cc:var(--c-fret)">${IC.guitar}</span><div class="info"><h3>Найди все позиции</h3><p>Все места одной ноты до 12 лада</p></div>${ST.games.findall ? `<span class="best">${"★".repeat(ST.games.findall.stars || 0)} ${ST.games.findall.best} с</span>` : ""}</button>
+    <button class="panel gitem press" data-act="intfret"><span class="cic" style="--cc:var(--c-fret)">${IC.guitar}</span><div class="info"><h3>Интервалы на грифе</h3><p>Постройте интервал от заданной ноты</p></div>${nb("intfret")}</button>
     <button class="panel gitem press" data-act="fret65"><span class="cic" style="--cc:var(--c-guitar)">${IC.guitar}</span><div class="info"><h3>Гриф: 6 и 5 струна</h3><p>Основа пауэр-аккордов и баррэ · 60 секунд</p></div>${nb("fret:01:12")}</button>
     <button class="panel gitem press" data-act="fret5"><span class="cic" style="--cc:var(--c-guitar)">${IC.guitar}</span><div class="info"><h3>Гриф: первая позиция</h3><p>Все струны до 5 лада</p></div>${nb("fret:012345:5")}</button>
     <button class="panel gitem press" data-act="fretAll"><span class="cic" style="--cc:var(--c-guitar)">${IC.guitar}</span><div class="info"><h3>Весь гриф</h3><p>Все струны до 12 лада</p></div>${nb("fret:012345:12")}</button>
@@ -237,7 +247,7 @@ function openSettings(page) {
     b += `<div class="panel">${rng("vol", "Громкость", 0, 1, .05, v => Math.round(v * 100) + "%")}${sw("uiSfx", "Звуки интерфейса", "Сигналы правильного и неверного ответа")}</div>`;
     b += `<div class="sec"><h2>Метроном и игры</h2></div><div class="panel">${seg("metroSound", "Звук метронома", [["click", "Клик"], ["wood", "Дерево"], ["beep", "Бип"], ["sticks", "Палочки"], ["cow", "Ковбелл"]])}${sw("accentFirst", "Акцент на первую долю")}<div class="set col"><div class="k"><b>Задержка ввода</b><small>Сейчас ${SET.latency} мс. Учитывается в ритм-играх</small></div><button class="btn soft sm" data-act="calib">Откалибровать</button></div></div>`;
     b += `<div class="sec"><h2>Инструменты</h2></div><div class="panel">${seg("kit", "Барабанный кит", Object.entries(AU.KITS).map(([k, v]) => [k, v.n]))}${seg("gtone", "Звук гитары", Object.entries(AU.TONES).map(([k, v]) => [k, v.n]))}${seg("synth", "Пресет синтезатора", Object.entries(AU.PRESETS).filter(([k, p]) => !p.hide && !k.startsWith("__")).slice(0, 6).map(([k, v]) => [k, v.n]))}</div>`;
-    b += `<div class="ctrl"><button class="btn soft" id="sTest">${IC.sound}Проверить звук</button></div>`;
+    b += `<div class="ctrl"><button class="btn soft" id="sTest">${IC.sound}Проверить звук</button><button class="btn ghost" data-act="audioreset">${IC.refresh}Перезапустить звук</button></div><p class="note">Если звук пропал, нажмите «Перезапустить звук» — приложение пересоздаст аудиосистему без перезагрузки.</p>`;
   } else if (page === "inst") {
     b += `<div class="panel">${seg("names", "Названия нот", [["latin", "C D E"], ["ru", "До Ре Ми"]])}${seg("flats", "Чёрные клавиши", [[0, "Диезы ♯"], [1, "Бемоли ♭"]])}</div>`;
     b += `<div class="sec"><h2>Гитара</h2></div><div class="panel">${sw("lefty", "Гриф для левши")}<div class="set col"><div class="k"><b>Строй</b></div><div class="seg" data-sg="tuning">${Object.entries(TUNINGS).map(([k, t]) => `<button data-v="${k}" class="${SET.tuning === k ? "on" : ""}">${t.n.split(" (")[0]}</button>`).join("")}</div></div>${rng("frets", "Ладов на грифе в уроках", 12, 22, 1, v => v)}</div>`;
@@ -264,7 +274,7 @@ function openSettings(page) {
   $$("[data-acc]", el).forEach(x => x.onclick = () => { SET.accent = x.dataset.acc; saveSet(); closeLayer(); openSettings(page) });
   $$("[data-sw]", el).forEach(x => x.onclick = () => { const k = x.dataset.sw; SET[k] = SET[k] ? 0 : 1; saveSet(); x.querySelector(".switch").classList.toggle("on", !!SET[k]) });
   $$("[data-rg]", el).forEach(x => x.oninput = () => { const k = x.dataset.rg; SET[k] = +x.value; x.nextElementSibling.textContent = k === "vol" ? Math.round(SET[k] * 100) + "%" : k.startsWith("key") || k === "fsz" ? x.value + "px" : x.value; clearTimeout(x._t); x._t = setTimeout(saveSet, 150) });
-  $$("[data-sg]", el).forEach(g => $$("button", g).forEach(x => x.onclick = () => { const k = g.dataset.sg, v = x.dataset.v; SET[k] = /^-?\d+(\.\d+)?$/.test(v) ? +v : v; saveSet(); $$("button", g).forEach(y => y.classList.toggle("on", y === x)); if (k === "kit") { AU.init(); AU.drum("kick"); AU.drum("snare", AU.now() + .25) } if (k === "gtone") { AU.init(); AU.strum(shapeMidis(GCH.E), 0, {}) } }));
+  $$("[data-sg]", el).forEach(g => $$("button", g).forEach(x => x.onclick = () => { const k = g.dataset.sg, v = x.dataset.v; SET[k] = /^-?\d+(\.\d+)?$/.test(v) ? +v : v; saveSet(); $$("button", g).forEach(y => y.classList.toggle("on", y === x)); if (k === "kit") { AU.init(); AU.setKit(v); AU.loadKit(v).then(() => { AU.drum("kick"); AU.drum("snare", AU.now() + .25) }) } if (k === "gtone") { AU.init(); AU.strum(shapeMidis(GCH.E), 0, {}) } }));
   $$("[data-goal]", el).forEach(x => x.onclick = () => { SET.goal = +x.dataset.goal; saveSet(); closeLayer(); openSettings("goal") });
   $$("[data-model]", el).forEach(x => x.onclick = () => { SET.model = x.dataset.model; saveSet(); $$("[data-model] .v", el).forEach(v => v.innerHTML = ""); x.querySelector(".v").innerHTML = IC.check });
   bindView(el);
